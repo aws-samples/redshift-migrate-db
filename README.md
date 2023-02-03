@@ -66,8 +66,6 @@ You can monitor the progress by tailing the migrate.log file like this:
 
 `tail -f migrate.log`
 
-## Technical details
-1. 
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
