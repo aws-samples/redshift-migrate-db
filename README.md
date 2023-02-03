@@ -52,7 +52,7 @@ cd redshift-migrate-db
 ## Script execution
 You can run the 0*.sh scripts one at a time like this:
 
-`./01_setup_datasharing.sh`
+`./01_create_users_groups.sh`
 
 or you can use the `migrate.sh` script to run all of the scripts like this:
 
