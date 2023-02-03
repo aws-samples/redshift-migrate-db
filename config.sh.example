@@ -1,0 +1,19 @@
+#Update the variables and then rename this file to "config.sh"
+
+EXCLUDED_SCHEMAS="('pg_catalog', 'information_schema')"
+LOAD_THREADS="100"
+RETRY="5"
+
+#SOURCE
+SOURCE_SHARE_NAME="migrate_datashare"
+SOURCE_PGUSER="awsuser"
+SOURCE_PGHOST="source.account.us-east-2.redshift.amazonaws.com"
+SOURCE_PGPORT="5439"
+SOURCE_PGDATABASE="dev"
+
+#TARGET
+TARGET_DATASHARE_DATABASE="migrate_db"
+TARGET_PGUSER="awsuser"
+TARGET_PGHOST="target.account.us-east-2.redshift-serverless.amazonaws.com"
+TARGET_PGPORT="5439"
+TARGET_PGDATABASE="dev"
