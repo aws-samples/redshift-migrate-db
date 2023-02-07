@@ -95,8 +95,6 @@ Role permissions are not included in this utility.
 
 **migrate.sh** A script that simplifies executing all of the scripts. 
 
-This migration utility does not migrate all database objects. 
-
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
