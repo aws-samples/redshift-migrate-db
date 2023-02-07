@@ -47,7 +47,8 @@ exec_fn()
 	${fn}
 	fatal_count=$(grep FATAL $LOCALPWD/log/${fn}_*.log | wc -l)
 	error_count=$(grep ERROR $LOCALPWD/log/${fn}_*.log | wc -l)
-	if [[ "${error_count}" -eq "0" && "${fatal_count}" -eq "0" ]]; then
+	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+	if [[ "${error_count}" -eq "0" && "${fatal_count}" -eq "0" && "${syntax_error_count}" -eq "0" ]]; then
 		echo "INFO: No errors found with ${fn}."
 	else
 		echo "INFO: Errors found! Starting retries."
@@ -57,7 +58,8 @@ exec_fn()
 			${fn}
 			fatal_count=$(grep FATAL $LOCALPWD/log/${fn}_*.log 2> /dev/null | wc -l)
 			error_count=$(grep ERROR $LOCALPWD/log/${fn}_*.log 2> /dev/null | wc -l)
-			if [[ "${error_count}" -eq "0" && "${fatal_count}" -eq "0" ]]; then
+			syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+			if [[ "${error_count}" -eq "0" && "${fatal_count}" -eq "0" && "${syntax_error_count}" -eq "0" ]]; then
 				echo "INFO: No more errors found. Exiting after ${retry} retries."
 				break
 			fi
@@ -65,7 +67,8 @@ exec_fn()
 	fi
 	fatal_count=$(grep FATAL $LOCALPWD/log/${fn}_*.log 2> /dev/null | wc -l)
 	error_count=$(grep ERROR $LOCALPWD/log/${fn}_*.log 2> /dev/null | wc -l)
-	if [[ "${error_count}" -gt "0" || "${fatal_count}" -gt "0" ]]; then
+	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+	if [[ "${error_count}" -gt "0" || "${fatal_count}" -gt "0" || "${syntax_error_count}" -gt "0" ]]; then
 		echo "ERROR: Errors still found after ${RETRY} retries."
 		exit 1
 	fi

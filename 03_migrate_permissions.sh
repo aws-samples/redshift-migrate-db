@@ -3,7 +3,8 @@ set -e
 
 source ${PWD}/config.sh
 source ${PWD}/common.sh
-exec_dir="exec_users"
+
+exec_dir="exec_permissions"
 rm -rf $PWD/${exec_dir}
 mkdir -p $PWD/${exec_dir}
 tmp_password="P@ssword1"
@@ -34,10 +35,10 @@ alter_table_owner()
 	OLDIFS=$IFS
 	IFS=$'\n'
 	i="0"
-	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid JOIN svv_all_schemas s ON s.schema_name = n.nspname WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND relkind = 'r' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%'")
+	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid JOIN svv_all_schemas s ON s.schema_name = n.nspname JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
-		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.relname, u.usename FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid WHERE n.nspname = '${schema_name}' AND relkind = 'r' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%' ORDER BY c.relname"); do
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
+		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.relname, u.usename FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE n.nspname = '${schema_name}' AND relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0 ORDER BY c.relname"); do
 			i=$((i+1))
 			table_name=$(echo ${x} | awk -F '|' '{print $1}')
 			table_owner=$(echo ${x} | awk -F '|' '{print $2}')
@@ -57,7 +58,7 @@ alter_function_owner()
 	IFS=$'\n'
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_language l ON p.prolang = l.oid JOIN pg_user u ON p.proowner = u.usesysid JOIN svv_all_schemas s ON s.schema_name = n.nspname WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND l.lanname IN ('sql', 'plpythonu') AND u.usename <> 'rdsdb'")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
 		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT p.proname, oidvectortypes(p.proargtypes), pg_get_userbyid(p.proowner) FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_language l ON p.prolang = l.oid JOIN pg_user u ON p.proowner = u.usesysid WHERE n.nspname = '${schema_name}' AND l.lanname IN ('sql', 'plpythonu') AND u.usename <> 'rdsdb'"); do
 			i=$((i+1))
 			proname=$(echo ${x} | awk -F '|' '{print $1}')
@@ -79,7 +80,7 @@ alter_procedure_owner()
 	IFS=$'\n'
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_language l ON p.prolang = l.oid JOIN pg_user u ON p.proowner = u.usesysid JOIN svv_all_schemas s ON s.schema_name = n.nspname WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND l.lanname = 'plpgsql' AND p.proname NOT LIKE 'mv_sp__%' AND u.usename <> 'rdsdb'")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
 		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT p.proname, oidvectortypes(p.proargtypes), pg_get_userbyid(p.proowner) FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid JOIN pg_language l ON p.prolang = l.oid JOIN pg_user u ON p.proowner = u.usesysid WHERE n.nspname = '${schema_name}' AND l.lanname = 'plpgsql' AND p.proname NOT LIKE 'mv_sp__%' AND u.usename <> 'rdsdb'"); do
 			i=$((i+1))
 			proname=$(echo ${x} | awk -F '|' '{print $1}')
@@ -164,9 +165,9 @@ grant_user_table()
 	exec_sql=""
 	OLDIFS=$IFS
 	IFS=$'\n'
-	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(DISTINCT sub2.nspname || sub2.relname) FROM (SELECT sub.nspname, sub.relname, split_part(array_to_string(sub.relacl, ','), ',', i) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE relkind = 'r') AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) NOT LIKE 'group %') AS sub2 JOIN pg_user u ON u.usename = split_part(sub2.acl, '=', 1) WHERE u.usename <> 'rdsdb' AND u.usesuper IS FALSE AND sub2.nspname NOT IN ${EXCLUDED_SCHEMAS}")
+	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(DISTINCT sub2.nspname || sub2.relname) FROM (SELECT sub.nspname, sub.relname, split_part(array_to_string(sub.relacl, ','), ',', i) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0) AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) NOT LIKE 'group %') AS sub2 JOIN pg_user u ON u.usename = split_part(sub2.acl, '=', 1) WHERE u.usename <> 'rdsdb' AND u.usesuper IS FALSE AND sub2.nspname NOT IN ${EXCLUDED_SCHEMAS}")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT sub2.nspname, sub2.relname, split_part(sub2.acl, '=', 1) AS usename, split_part(split_part(sub2.acl, '=', 2), '/', 1) AS usegrant FROM (SELECT sub.nspname, sub.relname, split_part(array_to_string(sub.relacl, ','), ',', i) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r') AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) NOT LIKE 'group %') AS sub2 JOIN pg_user u ON u.usename = split_part(sub2.acl, '=', 1) WHERE u.usename <> 'rdsdb' AND u.usesuper IS FALSE AND sub2.nspname NOT IN ${EXCLUDED_SCHEMAS} ORDER BY 1, 2;"); do
+	for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT sub2.nspname, sub2.relname, split_part(sub2.acl, '=', 1) AS usename, split_part(split_part(sub2.acl, '=', 2), '/', 1) AS usegrant FROM (SELECT sub.nspname, sub.relname, split_part(array_to_string(sub.relacl, ','), ',', i) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE c.relkind = 'r' AND a.min_attsortkeyord >= 0 AND c.relname NOT LIKE 'mv_tbl__%') AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) NOT LIKE 'group %') AS sub2 JOIN pg_user u ON u.usename = split_part(sub2.acl, '=', 1) WHERE u.usename <> 'rdsdb' AND u.usesuper IS FALSE AND sub2.nspname NOT IN ${EXCLUDED_SCHEMAS} ORDER BY 1, 2;"); do
 		schema_name=$(echo ${x} | awk -F '|' '{print $1}')
 		table_name=$(echo ${x} | awk -F '|' '{print $2}')
 		grantee=$(echo ${x} | awk -F '|' '{print $3}')
@@ -382,9 +383,9 @@ grant_group_table()
 	exec_sql=""
 	OLDIFS=$IFS
 	IFS=$'\n'
-	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(DISTINCT sub2.nspname || sub2.relname) FROM (SELECT sub.nspname, sub.relname, split_part(split_part(array_to_string(sub.relacl, ','), ',', i), ' ', 2) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r') AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) LIKE 'group %') AS sub2 WHERE sub2.nspname NOT IN ${EXCLUDED_SCHEMAS}")
+	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(DISTINCT sub2.nspname || sub2.relname) FROM (SELECT sub.nspname, sub.relname, split_part(split_part(array_to_string(sub.relacl, ','), ',', i), ' ', 2) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE c.relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0) AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) LIKE 'group %') AS sub2 WHERE sub2.nspname NOT IN ${EXCLUDED_SCHEMAS}")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT sub2.nspname, sub2.relname, split_part(sub2.acl, '=', 1) AS groname, split_part(split_part(sub2.acl, '=', 2), '/', 1) AS grogrant FROM (SELECT sub.nspname, sub.relname, split_part(split_part(array_to_string(sub.relacl, ','), ',', i), ' ', 2) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r') AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) LIKE 'group %') AS sub2 WHERE sub2.nspname NOT IN ${EXCLUDED_SCHEMAS} ORDER BY 1, 2;"); do
+	for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT sub2.nspname, sub2.relname, split_part(sub2.acl, '=', 1) AS groname, split_part(split_part(sub2.acl, '=', 2), '/', 1) AS grogrant FROM (SELECT sub.nspname, sub.relname, split_part(split_part(array_to_string(sub.relacl, ','), ',', i), ' ', 2) AS acl FROM (SELECT n.nspname, c.relname, generate_series(1, array_upper(c.relacl, 1)) AS i, c.relacl FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE c.relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0) AS sub WHERE split_part(array_to_string(sub.relacl, ','), ',', i) LIKE 'group %') AS sub2 WHERE sub2.nspname NOT IN ${EXCLUDED_SCHEMAS} ORDER BY 1, 2;"); do
 		schema_name=$(echo ${x} | awk -F '|' '{print $1}')
 		table_name=$(echo ${x} | awk -F '|' '{print $2}')
 		group_name=$(echo ${x} | awk -F '|' '{print $3}')

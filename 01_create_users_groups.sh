@@ -3,6 +3,7 @@ set -e
 
 source ${PWD}/config.sh
 source ${PWD}/common.sh
+
 exec_dir="exec_users"
 rm -rf $PWD/${exec_dir}
 mkdir -p $PWD/${exec_dir}

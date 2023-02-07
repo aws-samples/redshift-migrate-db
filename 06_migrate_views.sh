@@ -3,7 +3,8 @@ set -e
 
 source ${PWD}/config.sh
 source ${PWD}/common.sh
-exec_dir="exec_load"
+
+exec_dir="exec_views"
 rm -rf $PWD/${exec_dir}
 mkdir -p $PWD/${exec_dir}
 
@@ -15,19 +16,15 @@ create_view()
 	IFS=$'\n'
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN svv_all_schemas s ON s.schema_name = n.nspname WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND c.relkind = 'v' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%'")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
-		for view_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%' ORDER BY c.relname"); do 
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
+		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.oid, c.relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%' ORDER BY c.relname"); do 
+			oid=$(echo "${x}" | awk -F '|' '{print $1}')
+			view_name=$(echo "${x}" | awk -F '|' '{print $2}')
 			i=$((i+1))
 			exec_script="${exec_dir}/${prefix}_${i}.sh"
 			echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND c.relname = '${view_name}'\")" >> ${exec_script}
-			echo -e "late_binding_check=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_get_late_binding_view_cols() cols(view_schema name, view_name name, col_name name, col_type varchar, col_num int) WHERE view_schema = '${schema_name}' AND view_name = '${view_name}'\")" >> ${exec_script}
 			echo -e "if [ \"\${count}\" -eq \"0\" ]; then" >> ${exec_script}
-			echo -e "\tif [ \"\${late_binding_check}\" -eq \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\tcreate_view_ddl=\"CREATE VIEW \\\"${schema_name}\\\".\\\"${view_name}\\\" AS \"" >> ${exec_script}
-			echo -e "\telse" >> ${exec_script}
-			echo -e "\t\tcreate_view_ddl=\"\"" >> ${exec_script}
-			echo -e "\tfi" >> ${exec_script}
-			echo -e "\tcreate_view_ddl+=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SHOW VIEW \\\"${schema_name}\\\".\\\"${view_name}\\\"\")" >> ${exec_script}
+			echo -e "\tcreate_view_ddl=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT CASE WHEN SUBSTRING(UPPER(LTRIM(vw_source)), 1, CHARINDEX('SELECT', UPPER(LTRIM(vw_source)))) LIKE '%CREATE %' THEN vw_source ELSE 'CREATE VIEW \\\"${schema_name}\\\".\\\"${view_name}\\\" AS ' || vw_source END FROM (SELECT oid, pg_get_viewdef(oid) AS vw_source FROM pg_class WHERE oid = ${oid}) AS sub;\")" >> ${exec_script}
 			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -c \"\${create_view_ddl}\" -e" >> ${exec_script}
 			echo -e "else" >> ${exec_script}
 			echo -e "\techo \"INFO: VIEW \\\"${schema_name}\\\".\\\"${view_name}\\\" already exists in TARGET\"" >> ${exec_script}
@@ -50,7 +47,7 @@ alter_view_owner()
 	i="0"
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid JOIN svv_all_schemas s ON s.schema_name = n.nspname WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND relkind = 'v' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%'")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
 		for x in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.relname, u.usename FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_user u ON c.relowner = u.usesysid WHERE n.nspname = '${schema_name}' AND relkind = 'v' AND LOWER(pg_get_viewdef(c.oid)) NOT LIKE '%materialized%' ORDER BY c.relname"); do
 			i=$((i+1))
 			table_name=$(echo ${x} | awk -F '|' '{print $1}')

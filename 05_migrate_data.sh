@@ -3,6 +3,7 @@ set -e
 
 source ${PWD}/config.sh
 source ${PWD}/common.sh
+
 exec_dir="exec_load"
 rm -rf $PWD/${exec_dir}
 mkdir -p $PWD/${exec_dir}
@@ -13,10 +14,11 @@ load_table()
 	i="0"
 	OLDIFS=$IFS
 	IFS=$'\n'
-	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN svv_all_schemas s ON n.nspname = s.schema_name WHERE s.schema_type='local' AND s.database_name = current_database() AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND c.relkind = 'r' AND c.relname not like 'mv_tbl__%'")
+	#min_attsortkeyord used to filter out tables with an interleaved sort key
+	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN svv_all_schemas s ON n.nspname = s.schema_name JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE s.schema_type = 'local' AND s.database_name = current_database() AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND c.relkind = 'r' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
-		for table_name in $(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname not like 'mv_tbl__%' ORDER BY c.relname"); do 
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
+		for table_name in $(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c "SELECT REPLACE(c.relname, '\\\$', '\\\\\$') FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0 ORDER BY c.relname"); do 
 			i=$((i+1))
 			exec_script="${exec_dir}/${prefix}_${i}.sh"
 			echo -e "#!/bin/bash" > ${exec_script}
@@ -63,8 +65,8 @@ create_materialized_view()
 	IFS=$'\n'
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN svv_all_schemas s ON n.nspname = s.schema_name WHERE s.database_name = current_database() AND s.schema_type = 'local' AND s.schema_name NOT IN ${EXCLUDED_SCHEMAS} AND c.relkind = 'v' AND LOWER(pg_get_viewdef(c.oid)) LIKE '%materialized%'")
 	echo "INFO: ${prefix}:creating ${obj_count}"
-	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}"); do
-		for view_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND LOWER(pg_get_viewdef(c.oid)) LIKE '%materialized%' ORDER BY c.relname"); do 
+	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
+		for view_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT REPLACE(c.relname, '\\\$', '\\\\\$') FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND LOWER(pg_get_viewdef(c.oid)) LIKE '%materialized%' ORDER BY 1"); do 
 			i=$((i+1))
 			exec_script="${exec_dir}/${prefix}_${i}.sh"
 			echo -e "#!/bin/bash" > ${exec_script}
@@ -88,6 +90,6 @@ create_materialized_view()
 }
 
 load_table
-create_materialized_view
+exec_fn "create_materialized_view"
 
 echo "INFO: Migrate data step complete"
