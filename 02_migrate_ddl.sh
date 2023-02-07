@@ -107,7 +107,7 @@ create_table()
 			echo -e "\tdiff_count=\$(diff \"${source_exec_sql}\" \"${target_exec_sql}\" | wc -l)" >> ${exec_script}
 			echo -e "fi" >> ${exec_script}
 			echo -e "if [[ \"\${target_table_exists}\" -gt \"0\" && \"\${diff_count}\" -gt \"0\" ]]; then" >> ${exec_script}
-			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -c \"DROP TABLE \\\"${schema_name}\\\".\\\"${table_name}\\\";\" -e" >> ${exec_script}
+			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -c \"DROP TABLE \\\"${schema_name}\\\".\\\"${table_name}\\\" CASCADE;\" -e" >> ${exec_script}
 			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -f ${source_exec_sql} -e" >> ${exec_script}
 			echo -e "fi" >> ${exec_script}
 			echo -e "if [ \"\${target_table_exists}\" -eq \"0\" ]; then" >> ${exec_script}
@@ -252,7 +252,7 @@ create_procedure()
 	wait_for_remaining "${tag}"
 	IFS=$OLDIFS
 }
-#create_schema
+create_schema
 exec_fn "create_table"
 exec_fn "create_foreign_key"
 exec_fn "create_function"

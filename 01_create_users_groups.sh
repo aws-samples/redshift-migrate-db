@@ -21,7 +21,7 @@ create_user()
 		exec_script="${exec_dir}/${prefix}_${i}.sh"
 		echo -e "#!/bin/bash" > ${exec_script}
 		echo -e "echo \"INFO: Creating user \\\"${usename}\\\"\"" >> ${exec_script}
-		echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT count(*) FROM pg_user_info WHERE usename = '${usename}'\")" >> ${exec_script}
+		echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_user_info WHERE usename = '${usename}'\")" >> ${exec_script}
 		echo -e "if [ \"\${count}\" -eq \"1\" ]; then" >> ${exec_script}
 		echo -e "\techo \"INFO: User \\\"${usename}\\\" already exists.\"" >> ${exec_script}
 		echo -e "else" >> ${exec_script}
@@ -69,7 +69,7 @@ create_group()
 		exec_script="${exec_dir}/${prefix}_${i}.sh"
 		echo -e "#!/bin/bash" > ${exec_script}
 		echo -e "echo \"INFO: Creating group \\\"${groname}\\\"\"" >> ${exec_script}
-		echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT count(*) FROM pg_group WHERE groname = '${groname}'\")" >> ${exec_script}
+		echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_group WHERE groname = '${groname}'\")" >> ${exec_script}
 		echo -e "if [ \"\${count}\" -eq \"1\" ]; then" >> ${exec_script}
 		echo -e "\techo \"INFO: group \\\"${groname}\\\" already exists.\"" >> ${exec_script}
 		echo -e "else" >> ${exec_script}

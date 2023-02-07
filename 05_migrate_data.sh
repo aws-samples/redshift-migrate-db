@@ -89,7 +89,7 @@ create_materialized_view()
 	IFS=$OLDIFS
 }
 
-load_table
+exec_fn "load_table"
 exec_fn "create_materialized_view"
 
 echo "INFO: Migrate data step complete"

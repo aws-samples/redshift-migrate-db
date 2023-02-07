@@ -5,7 +5,7 @@ source ${PWD}/config.sh
 
 create_datashare()
 {
-	count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT count(*) FROM SVV_DATASHARES WHERE share_name = '${SOURCE_SHARE_NAME}'")
+	count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM SVV_DATASHARES WHERE share_name = '${SOURCE_SHARE_NAME}'")
 	if [ "${count}" -eq "0" ]; then
 		psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "CREATE DATASHARE ${SOURCE_SHARE_NAME} SET PUBLICACCESSIBLE TRUE;" -e
 	else
@@ -19,7 +19,7 @@ add_schemas()
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}")
 	echo "INFO: ${prefix}:creating ${obj_count}"
 	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
-		count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT count(*) FROM svv_datashare_objects WHERE share_name = '${SOURCE_SHARE_NAME}' AND object_type = 'schema' AND object_name = '${schema_name}'")
+		count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM svv_datashare_objects WHERE share_name = '${SOURCE_SHARE_NAME}' AND object_type = 'schema' AND object_name = '${schema_name}'")
 		i=$((i+1))
 		echo "INFO: ${prefix}:${i}:${obj_count}:${schema_name}"
 		if [ "${count}" -eq "0" ]; then
@@ -31,7 +31,7 @@ add_schemas()
 grant_datashare()
 {
 	consumer_namespace=$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c "SELECT current_namespace")
-	count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT count(*) FROM svv_datashare_consumers WHERE share_name = '${SOURCE_SHARE_NAME}' AND consumer_namespace = '${consumer_namespace}'")
+	count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM svv_datashare_consumers WHERE share_name = '${SOURCE_SHARE_NAME}' AND consumer_namespace = '${consumer_namespace}'")
 	if [ "${count}" -eq "0" ]; then
 		psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "GRANT USAGE ON DATASHARE ${SOURCE_SHARE_NAME} TO NAMESPACE '${consumer_namespace}'" -e
 	else
@@ -55,7 +55,7 @@ create_external_schemas()
 	obj_count=$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT COUNT(*) FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS}")
 	echo "INFO: ${prefix}:creating ${obj_count}"
 	for schema_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT schema_name FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'local' AND schema_name NOT IN ${EXCLUDED_SCHEMAS} ORDER BY schema_name"); do
-		count=$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c "SELECT count(*) FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'external' AND schema_name = 'ext_${schema_name}'")
+		count=$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c "SELECT COUNT(*) FROM svv_all_schemas WHERE database_name = current_database() AND schema_type = 'external' AND schema_name = 'ext_${schema_name}'")
 		i=$((i+1))
 		echo "INFO: ${prefix}:${i}:${obj_count}:${schema_name}"
 		if [ "${count}" -eq "0" ]; then

@@ -34,11 +34,15 @@ wait_for_remaining()
 
 	error_count=$(grep ERROR $LOCALPWD/log/${prefix}*.log 2> /dev/null | wc -l)
 	if [ "${error_count}" -gt "0" ]; then
-		echo "WARNING: ${error_count} errors found! Check $LOCALPWD/log/${prefix}*.log for details."
+		echo "WARNING: ${error_count} Errors found! Check $LOCALPWD/log/${prefix}*.log for details."
+	fi
+	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+	if [ "${syntax_error_count}" -gt "0" ]; then
+		echo "WARNING: ${fatal_count} Syntax Errors found! Check $LOCALPWD/log/${prefix}*.log for details."
 	fi
 	fatal_count=$(grep FATAL $LOCALPWD/log/${prefix}*.log 2> /dev/null | wc -l)
 	if [ "${fatal_count}" -gt "0" ]; then
-		echo "WARNING: ${fatal_count} FATAL errors found! Check $LOCALPWD/log/${prefix}*.log for details."
+		echo "WARNING: ${fatal_count} FATAL Errors found! Check $LOCALPWD/log/${prefix}*.log for details."
 	fi
 }
 exec_fn()
@@ -48,6 +52,7 @@ exec_fn()
 	fatal_count=$(grep FATAL $LOCALPWD/log/${fn}_*.log | wc -l)
 	error_count=$(grep ERROR $LOCALPWD/log/${fn}_*.log | wc -l)
 	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+
 	if [[ "${error_count}" -eq "0" && "${fatal_count}" -eq "0" && "${syntax_error_count}" -eq "0" ]]; then
 		echo "INFO: No errors found with ${fn}."
 	else
