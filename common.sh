@@ -36,7 +36,7 @@ wait_for_remaining()
 	if [ "${error_count}" -gt "0" ]; then
 		echo "WARNING: ${error_count} Errors found! Check $LOCALPWD/log/${prefix}*.log for details."
 	fi
-	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${fn}_*.log | wc -l)
+	syntax_error_count=$(grep "syntax error" $LOCALPWD/log/${prefix}_*.log | wc -l)
 	if [ "${syntax_error_count}" -gt "0" ]; then
 		echo "WARNING: ${fatal_count} Syntax Errors found! Check $LOCALPWD/log/${prefix}*.log for details."
 	fi

@@ -6,14 +6,12 @@ FROM 	(
 		FROM pg_namespace AS n
 		JOIN pg_class AS c ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r'
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --OPEN PAREN COLUMN LIST
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 5 AS seq, 
 		'(' AS ddl
 		FROM pg_namespace AS n
 		JOIN pg_class AS c ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r'
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --COLUMN LIST
 		SELECT schema_name, table_name, seq, 
 		'\t' || col_delim || col_name || ' ' || col_datatype || ' ' || col_nullable || ' ' || col_default || ' ' || col_encoding AS ddl
@@ -33,26 +31,14 @@ FROM 	(
 		JOIN pg_attribute AS a ON c.oid = a.attrelid
 		LEFT OUTER JOIN pg_attrdef AS adef ON a.attrelid = adef.adrelid AND a.attnum = adef.adnum
 		WHERE c.relkind = 'r' AND a.attnum > 0
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		ORDER BY a.attnum
 		)
-		UNION ALL --CONSTRAINT LIST
-		(
-		SELECT n.nspname AS schema_name, c.relname AS table_name, 200000000 + MOD(CAST(con.oid AS INT),100000000) AS seq, 
-		'\t,' || pg_get_constraintdef(con.oid) AS ddl
-		FROM pg_constraint AS con
-		JOIN pg_class AS c ON c.relnamespace = con.connamespace AND c.oid = con.conrelid
-		JOIN pg_namespace AS n ON n.oid = c.relnamespace
-		WHERE c.relkind = 'r' AND pg_get_constraintdef(con.oid) NOT LIKE 'FOREIGN KEY%'
-		AND n.nspname = :schema_name AND c.relname = :table_name
-		ORDER BY seq)
 		UNION ALL --CLOSE PAREN COLUMN LIST
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 299999999 AS seq, 
 		')' AS ddl
 		FROM pg_namespace AS n
 		JOIN pg_class AS c ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r'
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --BACKUP
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 300000000 AS seq,
 		'BACKUP NO' as ddl
@@ -65,7 +51,6 @@ FROM 	(
 			WHERE datname = current_database()
 			) AS sub ON sub.id = c.oid
 		WHERE c.relkind = 'r'
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --DISTSTYLE
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 300000001 AS seq,
 		CASE 	WHEN c.reldiststyle = 0 THEN 'DISTSTYLE EVEN'
@@ -77,7 +62,6 @@ FROM 	(
 		FROM pg_namespace AS n
 		JOIN pg_class AS c ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r'
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --DISTKEY COLUMNS
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 400000000 + a.attnum AS seq, 
 		' DISTKEY ("' || a.attname || '")' AS ddl
@@ -87,7 +71,6 @@ FROM 	(
 		WHERE c.relkind = 'r'
 		AND a.attisdistkey IS TRUE
 		AND a.attnum > 0
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --SORTKEY COLUMNS
 		SELECT schema_name, table_name, seq,
 		CASE WHEN min_sort < 0 THEN 'INTERLEAVED SORTKEY (' ELSE ' SORTKEY (' END AS ddl
@@ -98,7 +81,6 @@ FROM 	(
 			WHERE c.relkind = 'r'
 			AND abs(a.attsortkeyord) > 0
 			AND a.attnum > 0
-			AND n.nspname = :schema_name AND c.relname = :table_name
 			group by n.nspname, c.relname
 			)
 		UNION ALL
@@ -111,7 +93,6 @@ FROM 	(
 		WHERE c.relkind = 'r'
 		AND abs(a.attsortkeyord) > 0
 		AND a.attnum > 0
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		ORDER BY abs(a.attsortkeyord)
 		)
 		UNION ALL --CLOSE PARAN
@@ -123,14 +104,12 @@ FROM 	(
 		WHERE c.relkind = 'r'
 		AND abs(a.attsortkeyord) = 1
 		AND a.attnum > 0
-		AND n.nspname = :schema_name AND c.relname = :table_name
 		UNION ALL --END SEMICOLON
 		SELECT n.nspname AS schema_name, c.relname AS table_name, 600000000 AS seq, 
 		';' AS ddl
 		FROM  pg_namespace AS n
 		JOIN pg_class AS c ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r' 
-		AND n.nspname = :schema_name AND c.relname = :table_name
 ) 
 WHERE schema_name = :schema_name AND table_name = :table_name
 ORDER BY seq;

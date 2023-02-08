@@ -22,7 +22,7 @@ create_view()
 			view_name=$(echo "${x}" | awk -F '|' '{print $2}')
 			i=$((i+1))
 			exec_script="${exec_dir}/${prefix}_${i}.sh"
-			echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND c.relname = '${view_name}'\")" >> ${exec_script}
+			echo -e "count=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'v' AND n.nspname = '${schema_name}' AND c.relname = '${view_name}'\")" > ${exec_script}
 			echo -e "if [ \"\${count}\" -eq \"0\" ]; then" >> ${exec_script}
 			echo -e "\tcreate_view_ddl=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT CASE WHEN SUBSTRING(UPPER(LTRIM(vw_source)), 1, CHARINDEX('SELECT', UPPER(LTRIM(vw_source)))) LIKE '%CREATE %' THEN vw_source ELSE 'CREATE VIEW \\\"${schema_name}\\\".\\\"${view_name}\\\" AS ' || vw_source END FROM (SELECT oid, pg_get_viewdef(oid) AS vw_source FROM pg_class WHERE oid = ${oid}) AS sub;\")" >> ${exec_script}
 			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -c \"\${create_view_ddl}\" -e" >> ${exec_script}

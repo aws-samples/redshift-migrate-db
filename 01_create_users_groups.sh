@@ -25,7 +25,7 @@ create_user()
 		echo -e "if [ \"\${count}\" -eq \"1\" ]; then" >> ${exec_script}
 		echo -e "\techo \"INFO: User \\\"${usename}\\\" already exists.\"" >> ${exec_script}
 		echo -e "else" >> ${exec_script}
-		echo -e "\tfor i in \$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT CASE WHEN usecreatedb THEN 'CREATEDB' ELSE 'NOCREATEDB' END, CASE WHEN usesuper THEN 'CREATEUSER' ELSE 'NOCREATEUSER' END, coalesce(syslogaccess, 'RESTRICTED'), coalesce(useconnlimit, '0'),  sessiontimeout FROM svl_user_info WHERE usename = '${usename}'\"); do" >> ${exec_script}
+		echo -e "\tfor i in \$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT CASE WHEN usecreatedb THEN 'CREATEDB' ELSE 'NOCREATEDB' END, CASE WHEN usesuper THEN 'CREATEUSER' ELSE 'NOCREATEUSER' END, COALESCE(syslogaccess, 'RESTRICTED'), COALESCE(useconnlimit, '0'),  sessiontimeout FROM svl_user_info WHERE usename = '${usename}'\"); do" >> ${exec_script}
 		echo -e "\t\tusecreatedb=\$(echo \$i | awk -F '|' '{print \$1}')" >> ${exec_script}
 		echo -e "\t\tusesuper=\$(echo \$i | awk -F '|' '{print \$2}')" >> ${exec_script}
 		echo -e "\t\tsyslogaccess=\$(echo \$i | awk -F '|' '{print \$3}')" >> ${exec_script}
