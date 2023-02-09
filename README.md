@@ -88,7 +88,7 @@ Does target table exist?
  │           │   └── Yes -> Do nothing
  │           └── No -> Do nothing
  └── No
-     └── Does target table have an identity column? 
+     └── Does source table have an identity column? 
          ├── Yes
          │   └── Does source table have data in it?
          │       ├── Yes -> Get max value from identity column in source, create table in target with max + 1 as seed and default identity instead of identity.
