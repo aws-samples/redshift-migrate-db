@@ -47,7 +47,7 @@ cd redshift-migrate-db
 
 4. Most steps in the migration are executed in parallel and the level of parallelism is handled by the `LOAD_THREADS` variable in `config.sh`. Testing has shown the default has worked well.
 
-5. This is automatic retry logic in the scripts in case of a failure. This can be caused by a table that is attempted to be created with a reference to a table that has not yet been created. Or a view that references another view that has not yet been created. The number of retries is based on the `RETRY` variable in the `config.sh` file. Testing has shown the default has worked well.
+5. There is automatic retry logic in the scripts in case of a failure. The script will execute again autoamtically based on the `RETRY` variable in `config.sh`. You can disable this by setting this variable value to 0. However, some scripts need the retry logic because of dependent objects that can be found in views, procedures, tables, and foreign keys. 
 
 ## Script execution
 You can run the 0*.sh scripts one at a time like this:
@@ -70,7 +70,7 @@ You can monitor the progress by tailing the migrate.log file like this:
 ### Script Detail
 **01_create_users_groups.sh** migrates existing users and groups to the target database. It will also add users to the groups. If the user doesn't exist in the target cluster, a default password is used in the target cluster and the password will be set to be expired. As of now, Roles are out of scope for this utility.
 
-**02_migrate_ddl.sh** migrates schemas, tables (with primary keys), foreign keys, functions, and procedures to the target database. All functions have retry logic except for create schema. This ensures objects with dependencies eventually get created.
+**02_migrate_ddl.sh** migrates schemas, tables, primary keys, foreign keys, functions, and procedures to the target database. All functions have retry logic except for create schema. This ensures objects with dependencies eventually get created.
 
 The create_table logic is robust and uses the following logic:
 
