@@ -82,7 +82,7 @@ Does target table exist?
  │           ├── Does target table have data in it?
  │           │   ├── No
  │           │   │   └── Does source table have data in it?
- │           │   │       └── Yes -> Get max values from identity columns in source and target. Are seed values diffent?
+ │           │   │       └── Yes -> Get max value from identity column in source and target seed value. Are seed values diffent?
  │           │   │           ├── Yes -> Recreate target table with new seed and use default identity instead of identity.
  │           │   │           └── No -> Do nothing
  │           │   └── Yes -> Do nothing
