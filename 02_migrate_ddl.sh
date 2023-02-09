@@ -50,68 +50,63 @@ create_table()
 		for table_name in $(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c "SELECT REPLACE(c.relname, '\\\$', '\\\\\$') FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN (SELECT attrelid, MIN(attsortkeyord) AS min_attsortkeyord FROM pg_attribute GROUP BY attrelid) a ON a.attrelid = c.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname NOT LIKE 'mv_tbl__%' AND a.min_attsortkeyord >= 0 ORDER BY REPLACE(c.relname, '\\\$', '\\\\\$')"); do 
 			i=$((i+1))
 			exec_script="${exec_dir}/${prefix}_${i}.sh"
-			source_exec_sql="${exec_dir}/${prefix}_source_${i}.sql"
-			target_exec_sql="${exec_dir}/${prefix}_target_${i}.sql"
-
+			exec_sql="${exec_dir}/${prefix}_${i}.sql"
 			echo -e "#!/bin/bash" > ${exec_script}
 			echo -e "echo \"INFO: Creating table \\\"${schema_name}\\\".\\\"${table_name}\\\"\"" >> ${exec_script}
-			echo -e "seed=\"1\"" >> ${exec_script}
 			echo -e "target_table_exists=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}'\")" >> ${exec_script}
 			echo -e "if [ \"\${target_table_exists}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -f get_table_ddl.sql -v schema_name=\"'${schema_name}'\" -v table_name=\"'${table_name}'\" > ${target_exec_sql}" >> ${exec_script}
-			echo -e "\ttarget_identity_check=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
-			echo -e "\tif [ \"\${target_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\techo \"INFO: Target has identity column. Get target rowcount.\"" >> ${exec_script}
+			echo -e "\tsource_identity_check=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
+			echo -e "\tif [ \"\${source_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
 			echo -e "\t\ttarget_rowcount=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT c.reltuples::bigint FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}'\")" >> ${exec_script}
-			echo -e "\t\tif [ \"\${target_rowcount}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\t\tidentity_column_name=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT a.attname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
-			echo -e "\t\t\ttarget_max=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT MAX(\${identity_column_name}) FROM \\\"${schema_name}\\\".\\\"${table_name}\\\"\")" >> ${exec_script}
-			echo -e "\t\t\tseed=\$((target_max+1))" >> ${exec_script}
-			echo -e "\t\telse" >> ${exec_script}
+			echo -e "\t\tif [ \"\${target_rowcount}\" -eq \"0\" ]; then" >> ${exec_script}
 			echo -e "\t\t\tsource_rowcount=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT c.reltuples::bigint FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}'\")" >> ${exec_script}
 			echo -e "\t\t\tif [ \"\${source_rowcount}\" -gt \"0\" ]; then" >> ${exec_script}
+			echo -e "\t\t\t\techo \"INFO: Source has data. Get identity column name.\"" >> ${exec_script}
 			echo -e "\t\t\t\tidentity_column_name=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT a.attname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
+			echo -e "\t\t\t\techo \"INFO: Get max value from identity column\"" >> ${exec_script}
 			echo -e "\t\t\t\tsource_max=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT MAX(\${identity_column_name}) FROM \\\"${schema_name}\\\".\\\"${table_name}\\\"\")" >> ${exec_script}
+			echo -e "\t\t\t\ttarget_seed=\$(psql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"SELECT split_part(split_part(ad.adsrc, '\\\'', 2), ',', 1) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
 			echo -e "\t\t\t\tseed=\$((source_max+1))" >> ${exec_script}
+			echo -e "\t\t\t\tif [ \"\${seed}\" -gt \"\${target_seed}\" ]; then" >> ${exec_script}
+			echo -e "\t\t\t\t\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -t -A -c \"DROP TABLE \\\"${schema_name}\\\".\\\"${table_name}\\\" CASCADE;\" -e" >> ${exec_script}
+			echo -e "\t\t\t\t\tpsql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -f get_table_ddl.sql -v schema_name=\"'${schema_name}'\" -v table_name=\"'${table_name}'\" > ${exec_sql}" >> ${exec_script}
+			echo -e "\t\t\t\t\tdefault_identity_check=\$(grep \"default_identity\" ${exec_sql} | wc -l)" >> ${exec_script}
+			echo -e "\t\t\t\t\tif [ \"\${default_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
+			echo -e "\t\t\t\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ identity(\${seed},1)/\" ${exec_sql}" >> ${exec_script}
+			echo -e "\t\t\t\t\telse" >> ${exec_script}
+			echo -e "\t\t\t\t\t\t#change to generated by default" >> ${exec_script}
+			echo -e "\t\t\t\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ generated by default as identity(\${seed},1)/\" ${exec_sql}" >> ${exec_script}
+			echo -e "\t\t\t\t\tfi" >> ${exec_script}
+			echo -e "\t\t\t\t\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -f ${exec_sql}" >> ${exec_script}
+			echo -e "\t\t\t\tfi" >> ${exec_script}
 			echo -e "\t\t\tfi" >> ${exec_script}
+			echo -e "\t\telse" >> ${exec_script}
+			echo -e "\t\t\techo \"INFO: Target table with identity already has data loaded.\"" >> ${exec_script}
 			echo -e "\t\tfi" >> ${exec_script}
-			echo -e "\t\tdefault_identity_check=\$(grep \" identity\" ${target_exec_sql} | grep \"generated by default\" | wc -l)" >> ${exec_script}
+			echo -e "\telse" >> ${exec_script}
+			echo -e "\t\techo \"INFO: Target table without identity already exists.\"" >> ${exec_script}
+			echo -e "\tfi" >> ${exec_script}
+			echo -e "else" >> ${exec_script}
+			echo -e "\tpsql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -f get_table_ddl.sql -v schema_name=\"'${schema_name}'\" -v table_name=\"'${table_name}'\" > ${exec_sql}" >> ${exec_script}
+			echo -e "\tsource_identity_check=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
+			echo -e "\tif [ \"\${source_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
+			echo -e "\t\techo \"INFO: Source has identity column. Get source rowcount.\"" >> ${exec_script}
+			echo -e "\t\tseed=\"1\"" >> ${exec_script}
+			echo -e "\t\tsource_rowcount=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT c.reltuples::bigint FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}'\")" >> ${exec_script}
+			echo -e "\t\tif [ \"\${source_rowcount}\" -gt \"0\" ]; then" >> ${exec_script}
+			echo -e "\t\t\tidentity_column_name=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT a.attname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
+			echo -e "\t\t\tsource_max=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT MAX(\${identity_column_name}) FROM \\\"${schema_name}\\\".\\\"${table_name}\\\"\")" >> ${exec_script}
+			echo -e "\t\t\tseed=\$((source_max+1))" >> ${exec_script}
+			echo -e "\t\tfi" >> ${exec_script}
+			echo -e "\t\tdefault_identity_check=\$(grep \" identity\" ${exec_sql} | grep \"generated by default\" | wc -l)" >> ${exec_script}
 			echo -e "\t\tif [ \"\${default_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ identity(\${seed},1)/\" ${target_exec_sql}" >> ${exec_script}
+			echo -e "\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ identity(\${seed},1)/\" ${exec_sql}" >> ${exec_script}
 			echo -e "\t\telse" >> ${exec_script}
 			echo -e "\t\t\t#change to generated by default" >> ${exec_script}
-			echo -e "\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ generated by default as identity(\${seed},1)/\" ${target_exec_sql}" >> ${exec_script}
+			echo -e "\t\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ generated by default as identity(\${seed},1)/\" ${exec_sql}" >> ${exec_script}
 			echo -e "\t\tfi" >> ${exec_script}
 			echo -e "\tfi" >> ${exec_script}
-			echo -e "fi" >> ${exec_script}
-			echo -e "psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -f get_table_ddl.sql -v schema_name=\"'${schema_name}'\" -v table_name=\"'${table_name}'\" > ${source_exec_sql}" >> ${exec_script}
-			echo -e "source_identity_check=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
-			echo -e "if [ \"\${source_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\techo \"INFO: Source has identity column. Get source rowcount.\"" >> ${exec_script}
-			echo -e "\tsource_rowcount=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT c.reltuples::bigint FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}'\")" >> ${exec_script}
-			echo -e "\tif [ \"\${source_rowcount}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\tidentity_column_name=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT a.attname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid JOIN pg_attribute a ON c.oid = a.attrelid JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum WHERE c.relkind = 'r' AND n.nspname = '${schema_name}' AND c.relname = '${table_name}' AND ad.adsrc LIKE '%identity%'\")" >> ${exec_script}
-			echo -e "\t\tsource_max=\$(psql -h $SOURCE_PGHOST -p $SOURCE_PGPORT -d $SOURCE_PGDATABASE -U $SOURCE_PGUSER -t -A -c \"SELECT MAX(\${identity_column_name}) FROM \\\"${schema_name}\\\".\\\"${table_name}\\\"\")" >> ${exec_script}
-			echo -e "\t\tseed=\$((source_max+1))" >> ${exec_script}
-			echo -e "\tfi" >> ${exec_script}
-			echo -e "\tdefault_identity_check=\$(grep \" identity\" ${source_exec_sql} | grep \"generated by default\" | wc -l)" >> ${exec_script}
-			echo -e "\tif [ \"\${default_identity_check}\" -gt \"0\" ]; then" >> ${exec_script}
-			echo -e "\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ identity(\${seed},1)/\" ${source_exec_sql}" >> ${exec_script}
-			echo -e "\telse" >> ${exec_script}
-			echo -e "\t\t#change to generated by default" >> ${exec_script}
-			echo -e "\t\tsed -i \"s/ identity([0-9]*,[0-9]*)/ generated by default as identity(\${seed},1)/\" ${source_exec_sql}" >> ${exec_script}
-			echo -e "\tfi" >> ${exec_script}
-			echo -e "fi" >> ${exec_script}
-			echo -e "diff_count=\"0\"" >> ${exec_script}
-			echo -e "if [ -f \"${target_exec_sql}\" ]; then" >> ${exec_script}
-			echo -e "\tdiff_count=\$(diff \"${source_exec_sql}\" \"${target_exec_sql}\" | wc -l)" >> ${exec_script}
-			echo -e "fi" >> ${exec_script}
-			echo -e "if [[ \"\${target_table_exists}\" -gt \"0\" && \"\${diff_count}\" -gt \"0\" ]]; then" >> ${exec_script}
-			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -c \"DROP TABLE \\\"${schema_name}\\\".\\\"${table_name}\\\" CASCADE;\" -e" >> ${exec_script}
-			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -f ${source_exec_sql} -e" >> ${exec_script}
-			echo -e "fi" >> ${exec_script}
-			echo -e "if [ \"\${target_table_exists}\" -eq \"0\" ]; then" >> ${exec_script}
-			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -f ${source_exec_sql} -e" >> ${exec_script}
+			echo -e "\tpsql -h $TARGET_PGHOST -p $TARGET_PGPORT -d $TARGET_PGDATABASE -U $TARGET_PGUSER -f ${exec_sql}" >> ${exec_script}
 			echo -e "fi" >> ${exec_script}
 			chmod 755 ${exec_script}
 
@@ -287,7 +282,7 @@ create_procedure()
 	wait_for_remaining "${tag}"
 	IFS=$OLDIFS
 }
-create_schema
+exec_fn "create_schema"
 exec_fn "create_table"
 exec_fn "create_primary_key"
 exec_fn "create_foreign_key"
