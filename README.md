@@ -74,6 +74,7 @@ You can monitor the progress by tailing the migrate.log file like this:
 
 The create_table logic is robust and uses the following logic:
 
+```
 Does target table exist? 
  ├── Yes
  │   └── Does target table have an identity column?
@@ -93,6 +94,7 @@ Does target table exist?
          │       ├── Yes -> Get max value from identity column in source, create table in target with max + 1 as seed and default identity instead of identity.
          │       └── No -> Use 1 as seed and create table with default identity instead of identity.
          └── No -> Create table in target with source DDL.
+```
 
 **03_migrate_permissions.sh** migrates permissions from the source to the target. These include 
 - schema, table, function, and procedure ownership
