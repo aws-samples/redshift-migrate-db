@@ -1,8 +1,16 @@
 # redshift-migrate-db
-Migrate a single database within a Redshift cluster to another cluster via Data Sharing.
+Migrate a single database within a Redshift cluster to another cluster via Datasharing.
 
 ## Purpose
-Migrate a single database from one cluster to another using data sharing. 
+Migrate a single database from one cluster to another using datasharing. 
+
+## Scope
+- Users, groups, and the membership of the users to groups not already present in the target cluster will be created in the target. Roles are not in scope at this time.
+- Schemas, tables, primary keys, foreign keys, procedures, and functions will be created in the target cluster if not already present. Other object types like models and datashares are not in scope at this time. Tables with multiple identity columns are not supported. Tables with identity columns are converted to "default with identity" and a calculated seed value to prevent duplicates. All schemas are copied except those configured to be excluded. See below for more details.
+- Ownership to schemas, tables, functions, and procedures are applied to the target based on the source cluster. Grants to users for schemas, tables, functions, and procedures are applied on the target based on the source cluster. Grants to groups for schemas, tables, functions, and procedures are applied on the target based on the source cluster. Lastly, default permissions for schemas to users and groups, users to users, and users to group are applied. Permissions for other objects are not in scope.
+- Datasharing is configured automatically by this utility. This includes the creation of external schemas and adding tables to the datashare created. Cross-region and cross-acount datasharing is not in scope at this time.
+- Data is loaded from the source to the target using datasharing in parallel threads. Tables with interleaved sort keys are excluded because these are not supported by datasharing. Materialized views are created in the target cluster based on the source cluster.
+- Views are created last to resolve dependecies on materialized views.
 
 ## Prerequisites
 1. An EC2 instance running Amazon Linux or CentOS with access to both the Source and Target clusters on port 5439.
@@ -95,6 +103,8 @@ Does target table exist?
          │       └── No -> Use 1 as seed and create table with default identity instead of identity.
          └── No -> Create table in target with source DDL.
 ```
+
+Note that tables with interleaved sort keys are excluded and all schemas will be migrated except those configured to be excluded. See `config.sh` for more details.
 
 **03_migrate_permissions.sh** migrates permissions from the source to the target. These include 
 - schema, table, function, and procedure ownership
