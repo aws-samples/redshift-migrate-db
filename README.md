@@ -1,5 +1,6 @@
 # redshift-migrate-db
 ![Migrate-DB](images/migrate-db.png)
+
 Migrate a single database within a Redshift cluster to another cluster via Datasharing.
 
 ## Purpose
